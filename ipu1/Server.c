@@ -83,65 +83,29 @@ static Server_Module        Module;
 
 #define VIRT_PHY_OFFSET (0x20000000)
 
-/*
- * ======== Clock configuration and Pin Muxing for DCAN1 ========
- */
-void DCAN1Prcm_clck_ram()
+uint32_t gpio_base_address = SOC_GPIO6_BASE + VIRT_PHY_OFFSET;
+uint32_t gpio_pin          = 13;
+
+Void gpio_test(Void)
 {
-    uint32_t status;
-	uint32_t i = 0;
-#if defined (SOC_TDA2XX) || defined (SOC_TDA2PX) || defined (SOC_TDA2EX) || defined (SOC_DRA72x) || defined (SOC_DRA75x)
-    /*CM_WKUPAON_DCAN1_CLKCTRL*/
-    HW_WR_FIELD32(SOC_WKUPAON_CM_BASE + CM_WKUPAON_DCAN1_CLKCTRL + VIRT_PHY_OFFSET,
-                CM_WKUPAON_DCAN1_CLKCTRL_MODULEMODE,
-                CM_WKUPAON_DCAN1_CLKCTRL_MODULEMODE_ENABLE);
-
-	Log_print0(Diags_INFO,"==========a wait enter 1");
-    while ((HW_RD_FIELD32(SOC_WKUPAON_CM_BASE + CM_WKUPAON_DCAN1_CLKCTRL + VIRT_PHY_OFFSET,
-                CM_WKUPAON_DCAN1_CLKCTRL_IDLEST)) ==
-                CM_WKUPAON_DCAN1_CLKCTRL_IDLEST_DISABLE)
-            {
-                ;
-            }
-    Log_print0(Diags_INFO,"==========a wait leave 1");
-
-    /*pin mux for dcan1*/
-    HW_WR_REG32(SOC_CORE_PAD_IO_REGISTERS_BASE+CTRL_CORE_PAD_DCAN1_TX + VIRT_PHY_OFFSET,0x000E0000);
-    HW_WR_REG32(SOC_CORE_PAD_IO_REGISTERS_BASE+CTRL_CORE_PAD_WAKEUP0 + VIRT_PHY_OFFSET,0x00010001);
-
-    /* Clear the start bit so that pulse is generated when run second time */
-    HW_WR_FIELD32((uint32_t) SOC_CTRL_MODULE_CORE_CORE_REGISTERS_BASE +
-                CTRL_CORE_CONTROL_IO_2 + VIRT_PHY_OFFSET,
-                CTRL_CORE_CONTROL_IO_2_DCAN1_RAMINIT_START,
-                0U);
-
-    HW_WR_FIELD32((uint32_t) SOC_CTRL_MODULE_CORE_CORE_REGISTERS_BASE +
-                CTRL_CORE_CONTROL_IO_2 + VIRT_PHY_OFFSET,
-                CTRL_CORE_CONTROL_IO_2_DCAN1_RAMINIT_START,
-                CTRL_CORE_CONTROL_IO_2_DCAN1_RAMINIT_START_SET);
-    status =((uint32_t) 0x1 << CTRL_CORE_CONTROL_IO_2_DCAN1_RAMINIT_DONE_SHIFT) &
-                CTRL_CORE_CONTROL_IO_2_DCAN1_RAMINIT_DONE_MASK;
-
-
-Log_print0(Diags_INFO,"==========wait enter 2");
-    while (status != ((status & HW_RD_REG32(SOC_CTRL_MODULE_CORE_CORE_REGISTERS_BASE +
-                CTRL_CORE_CONTROL_IO_2 + VIRT_PHY_OFFSET))))
-            {
-                if(++i > 250) {
-					Log_print0(Diags_INFO,"=======timeout! dcan1 clk ram setting failure !");
-					return;
-				}
-            }
-Log_print0(Diags_INFO,"==========wait leave 2");
-    /* Clear the done bit */
-    HW_WR_FIELD32((uint32_t) SOC_CTRL_MODULE_CORE_CORE_REGISTERS_BASE +
-                CTRL_CORE_CONTROL_IO_2 + VIRT_PHY_OFFSET,
-                CTRL_CORE_CONTROL_IO_2_DCAN1_RAMINIT_DONE,
-                1U);
-#endif
-
+	HW_WR_REG32(SOC_CORE_PAD_IO_REGISTERS_BASE+CTRL_CORE_PAD_USB2_DRVVBUS+ VIRT_PHY_OFFSET,0x6000e);
+	
+	HW_WR_REG32(SOC_L4PER_CM_CORE_BASE+CM_L4PER_GPIO6_CLKCTRL + VIRT_PHY_OFFSET,0x101);
+    while ((HW_RD_REG32(SOC_L4PER_CM_CORE_BASE+CM_L4PER_GPIO6_CLKCTRL + VIRT_PHY_OFFSET) & (0x00030000U)) != 0x0)
+        {
+            ;
+        }
+    GPIOModuleReset(gpio_base_address);
+    GPIOModuleEnable(gpio_base_address);
+    
+	GPIODirModeSet(gpio_base_address, gpio_pin, GPIO_DIR_OUTPUT);
+	while(1){
+		GPIOPinWrite(gpio_base_address, gpio_pin, GPIO_PIN_LOW);
+		Task_sleep(500);
+		GPIOPinWrite(gpio_base_address, gpio_pin, GPIO_PIN_HIGH);
+		Task_sleep(500);
+	}
 }
-
 
 
 /*
@@ -189,29 +153,7 @@ leave:
     return (status);
 }
 
-uint32_t gpio_base_address = SOC_GPIO6_BASE + VIRT_PHY_OFFSET;
-uint32_t gpio_pin          = 13;
 
-Void gpio_test(Void)
-{
-	HW_WR_REG32(SOC_CORE_PAD_IO_REGISTERS_BASE+CTRL_CORE_PAD_USB2_DRVVBUS+ VIRT_PHY_OFFSET,0x6000e);
-	
-	HW_WR_REG32(SOC_L4PER_CM_CORE_BASE+CM_L4PER_GPIO6_CLKCTRL + VIRT_PHY_OFFSET,0x101);
-    while ((HW_RD_REG32(SOC_L4PER_CM_CORE_BASE+CM_L4PER_GPIO6_CLKCTRL + VIRT_PHY_OFFSET) & (0x00030000U)) != 0x0)
-        {
-            ;
-        }
-    GPIOModuleReset(gpio_base_address);
-    GPIOModuleEnable(gpio_base_address);
-    
-	GPIODirModeSet(gpio_base_address, gpio_pin, GPIO_DIR_OUTPUT);
-	while(1){
-		GPIOPinWrite(gpio_base_address, gpio_pin, GPIO_PIN_LOW);
-		Task_sleep(500);
-		GPIOPinWrite(gpio_base_address, gpio_pin, GPIO_PIN_HIGH);
-		Task_sleep(500);
-	}
-}
 
 
 /*
@@ -224,10 +166,9 @@ Int Server_exec()
     App_Msg *           msg;
     MessageQ_QueueId    queId;
 
-	Log_print0(Diags_INFO,"==============DCAN1Prcm_clck_ram enter\n");
-	// DCAN1Prcm_clck_ram();
+	Log_print0(Diags_INFO,"=============gpio_test enter\n");
 	gpio_test();
-	Log_print0(Diags_INFO,"==============DCAN1Prcm_clck_ram leave\n");
+	Log_print0(Diags_INFO,"=============gpio_test leave\n");
 
     while (running) {
 
